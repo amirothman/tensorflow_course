@@ -1,94 +1,71 @@
+from __future__ import print_function
+
 import tensorflow as tf
+import numpy
+rng = numpy.random
 
-# Step 1: Initial Setup
+# Parameters
+learning_rate = 0.01
+training_epochs = 1000
+display_step = 50
 
-# Setup the placeholders and variables
+# Training Data
+train_X = numpy.asarray([3.3,4.4,5.5,6.71,6.93,4.168,9.779,6.182,7.59,2.167,
+                         7.042,10.791,5.313,7.997,5.654,9.27,3.1])
+train_Y = numpy.asarray([1.7,2.76,2.09,3.19,1.694,1.573,3.366,2.596,2.53,1.221,
+                         2.827,3.465,1.65,2.904,2.42,2.94,1.3])
 
-X = tf.placeholder(tf.float32)
+# Testing example, as requested (Issue #2)
+test_X = numpy.asarray([6.83, 4.668, 8.9, 7.91, 5.7, 8.7, 3.1, 2.1])
+test_Y = numpy.asarray([1.84, 2.273, 3.2, 2.831, 2.92, 3.24, 1.35, 1.03])
 
-W = tf.Variable(tf.random_normal([]),tf.float32)
-b = tf.Variable([0.1],tf.float32)
+n_samples = train_X.shape[0]
 
-# Step 2: Define a Model
+# tf Graph Input
+X = tf.placeholder("float")
+Y = tf.placeholder("float")
 
-yhat = tf.multiply(W,X) + b
-y = tf.placeholder(tf.float32)
+# Set model weights
+W = tf.Variable(rng.randn(), name="weight")
+b = tf.Variable(rng.randn(), name="bias")
 
-# Step 3: Define Loss Function
+# Construct a linear model
+pred = tf.add(tf.multiply(X, W), b)
 
-# A loss (cost) function measures how the error of the prediction from the known answer
-#
-# Eg Mean Square Error
+# Mean squared error
+cost = tf.reduce_sum(tf.pow(pred-Y, 2))/(2*n_samples)
 
-loss = tf.reduce_sum(tf.square(yhat - y))
+# Gradient descent
 
-# Step 4: Define Optimizer
+optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
 
-# The Optimizer used gradient-based algorithm to reduce the loss (error) during training
-learning_rate = 0.001
-optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+# Initializing the variables
+init = tf.global_variables_initializer()
 
-train = optimizer.minimize(loss)
-
-# Step 5: Training Loop
-from tflearn.datasets import cifar10
-(train_X, train_y), (X_test, y_test) = cifar10.load_data()
-# Iterate the optimizer to reduce error
+# Launch the graph
 with tf.Session() as sess:
-    for i in range(1000):
-        sess.run(tf.global_variables_initializer())
-        sess.run(train, {X:train_X, y:train_y})
+    sess.run(init)
 
+    # Fit all training data
+    for epoch in range(training_epochs):
+        for (x, y) in zip(train_X, train_Y):
+            sess.run(optimizer, feed_dict={X: x, Y: y})
 
-# Step 1: Initial Setup (MNIST)
+        # Display logs per epoch step
+        if (epoch+1) % display_step == 0:
+            c = sess.run(cost, feed_dict={X: train_X, Y:train_Y})
+            print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(c), \
+                "W=", sess.run(W), "b=", sess.run(b))
 
-X = tf.placeholder(tf.float32, [None, 784])
-W = tf.Variable(tf.zeros([784, 10]))
-b = tf.Variable(tf.zeros([10]))
+    print("Optimization Finished!")
+    training_cost = sess.run(cost, feed_dict={X: train_X, Y: train_Y})
+    print("Training cost=", training_cost, "W=", sess.run(W), "b=", sess.run(b), '\n')
 
-# Step 2: Define a Model (MNIST)
+    print("Testing... (Mean square loss Comparison)")
+    testing_cost = sess.run(
+        tf.reduce_sum(tf.pow(pred - Y, 2)) / (2 * test_X.shape[0]),
+        feed_dict={X: test_X, Y: test_Y})  # same function as cost above
 
-yhat = tf.nn.softmax(tf.matmul(X,W)+b)
-y = tf.placeholder(tf.float32, [None, 10])
-
-# Step 3: Define Loss Function
-
-# Cross Entropy
-
-loss = -tf.reduce_sum(y*tf.log(yhat))
-
-# Step 4: Define Optimizer
-
-optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-
-train = optimizer.minimize(loss)
-
-# Step 5: Training Loop
-# Train mini batch of 100 pages for each iteration (epoch)
-
-for i in range(1000):
-    batch_X, batch_y = mnist.train.next_batch(100)
-    train_data = {X: batch_X, y: batch_y}
-    sess.run(train, feed_dict=train_data)
-
-# Step 6: Evaluation
-
-is_correct = tf.equal(tf.argmax(y,1),tf.argmax(yhat,1))
-
-accuracy = tf.reduce_mean(tf.cast(is_correct,tf.float32))
-
-sess.run(train, feed_dict=test_data)
-sess.run(accuracy,feed_dict = test_data)
-
-# Softmax Cross Entropy LF
-
-tf.nn.softmax_cross_entropy_with_logits(labels=y, logits = yhat)
-
-# Replace the previous model with yhat = tf.matmul(X, W) + b
-# and loss function with loss = tf.reduce_mean(   tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=yhat))
-#
-# Try out different learning rates:
-# 0.001. 0.01. 0.1, 0.5
-
-yhat = tf.matmul(X, W) + b
-loss = tf.reduce_mean(   tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=yhat))
+    print("Testing cost=", testing_cost)
+    print("Absolute mean square loss difference:", abs(
+        training_cost - testing_cost))

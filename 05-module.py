@@ -1,84 +1,78 @@
-
 import tensorflow as tf
+from tensorflow.examples.tutorials.mnist import input_data
 
-# Common Activation Functions
-
-x = tf.random_normal([5,5])
-tf.nn.relu(x)
-tf.nn.sigmoid(x)
-tf.nn.softmax(x)
-tf.nn.tanh(x)
-
-# Common Optimizer in TF
-learning_rate = 0.001
-tf.train.GradientDescentOptimizer(learning_rate)
-tf.train.AdamOptimizer(learning_rate)
-
-# Step 1: Initial Setup (MNIST)
-
-X = tf.placeholder(tf.float32, [None, 784])
-y = tf.placeholder(tf.float32, [None, 10])
+mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 
 # NN Architecture
 
-L1 = 200
-L2 = 100
-L3 = 60
-L4 = 30
+n_nodes_hl_1 = 500
+n_nodes_hl_2 = 500
+n_nodes_hl_3 = 500
 
-# Initialize the weights and biases with truncated normal distribution
-W1 = tf.Variable(tf.truncated_normal([784, L1], stddev=0.1))
-B1 = tf.Variable(tf.truncated_normal([L1], stddev=0.1))
+n_classes = 10
+batch_size = 100
 
-# Truncated normal follows a normal distribution with specified
-# mean and standard deviation, except that values whose magnitude
-# is more than 2 standard deviations from the mean are dropped and re-picked.
+x = tf.placeholder('float', [None, 784])
+y = tf.placeholder('float')
 
-B2 = tf.Variable(tf.zeros([L2]))
-W3 = tf.Variable(tf.truncated_normal([L2, L3], stddev=0.1))
-B3 = tf.Variable(tf.zeros([L3]))
-W4 = tf.Variable(tf.truncated_normal([L3, L4], stddev=0.1))
-B4 = tf.Variable(tf.zeros([L4]))
-W5 = tf.Variable(tf.truncated_normal([L4, 10], stddev=0.1))
-B5 = tf.Variable(tf.zeros([10]))
+def neural_network_model(data):
 
-# Step 2: NN Model
+    hidden_layer_1 = {
+        "weights":tf.Variable(tf.random_normal([784, n_nodes_hl_1])),
+        "biases":tf.Variable(tf.random_normal([n_nodes_hl_1]))
+        }
 
-Y1 = tf.nn.relu(tf.matmul(X, W1) + B1)
-Y2 = tf.nn.relu(tf.matmul(Y1, W2) + B2)
-Y3 = tf.nn.relu(tf.matmul(Y2, W3) + B3)
-Y4 = tf.nn.relu(tf.matmul(Y3, W4) + B4)
-Ylogits = tf.matmul(Y4, W5) + B5
-yhat = tf.nn.softmax(Ylogits)
+    hidden_layer_2 = {
+        "weights":tf.Variable(tf.random_normal([n_nodes_hl_1, n_nodes_hl_2])),
+        "biases":tf.Variable(tf.random_normal([n_nodes_hl_2]))
+        }
 
-# Step 3: Loss Function
+    hidden_layer_3 = {
+        "weights":tf.Variable(tf.random_normal([n_nodes_hl_2, n_nodes_hl_3])),
+        "biases":tf.Variable(tf.random_normal([n_nodes_hl_3]))
+        }
 
-loss = tf.nn.softmax_cross_entropy_with_logits(logits=Ylogits, labels=y)
+    output_layer = {
+        "weights":tf.Variable(tf.random_normal([n_nodes_hl_3, n_classes])),
+        "biases":tf.Variable(tf.random_normal([n_classes]))
+        }
 
-# Step 4: Optimizer
+    # input_data * weights + biases
 
-optimizer = tf.train.GradientDescentOptimizer(0.001)
-train = optimizer.minimize(loss)
+    layer_1 = tf.add(tf.matmul(data, hidden_layer_1["weights"]), hidden_layer_1["biases"])
+    layer_1 = tf.nn.relu(layer_1)
 
-# Step 5: Training Loop
+    layer_2 = tf.add(tf.matmul(layer_1, hidden_layer_2["weights"]), hidden_layer_2["biases"])
+    layer_2 = tf.nn.relu(layer_2)
 
-for epoch in range(10):
-    for i in range(550):
-        batch_X, batch_y = mnist.train.next_batch(100)
-        train_data = {X: batch_X, y: batch_y}
-        sess.run(train, feed_dict=train_data)
-        print("Training Accuracy = ", sess.run(accuracy, feed_dict=train_data))
+    layer_3 = tf.add(tf.matmul(layer_2, hidden_layer_3["weights"]), hidden_layer_3["biases"])
+    layer_3 = tf.nn.relu(layer_3)
 
-# Step 6: Evaluation
+    output = tf.add(tf.matmul(layer_3, output_layer["weights"]), output_layer["biases"])
 
-test_data = {X:mnist.test.images,y:mnist.test.labels}
-sess.run(accuracy, feed_dict = test_data)
+    return output
 
-# Saving Model
+def train_neural_network(x, y):
+    prediction = neural_network_model(x)
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=prediction, labels=y))
+    optimizer = tf.train.AdamOptimizer().minimize(cost)
 
-saver = tf.train.Saver()
-saver.save(sess, model_file)
+    epochs = 10
 
-# Restoring Model
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
 
-saver.restore(sess, model_file)
+        for epoch in range(epochs):
+            epoch_loss = 0
+            for _ in range(int(mnist.train.num_examples/batch_size)):
+                epoch_x, epoch_y = mnist.train.next_batch(batch_size)
+                _, c = sess.run([optimizer, cost], feed_dict = {x: epoch_x, y: epoch_y})
+                epoch_loss += c
+
+            print("Epoch", epoch, "completed out of", epochs,"loss",epoch_loss)
+
+        correct = tf.equal(tf.argmax(prediction,1), tf.argmax(y,1))
+        accuracy = tf.reduce_mean(tf.cast(correct,"float"))
+        print("Accuracy",accuracy.eval({x: mnist.test.images, y:mnist.test.labels}))
+
+train_neural_network(x, y)
